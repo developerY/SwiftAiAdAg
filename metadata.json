@@ -1,0 +1,6 @@
+{
+  "name": "SwiftAiAd — Swift AI Ad Agency",
+  "description": "Building Ads at the Speed of Thought. AI-powered creative campaigns, autonomous mobility advertising, GenAI video production, and real-time adaptive feedback loops.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
