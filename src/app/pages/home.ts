@@ -117,7 +117,7 @@ interface YouTubeWindow extends Window {
                 <iframe
                   #heroVideoFrame
                   [src]="heroVideoEmbedUrl"
-                  title="SwiftAiAd — Building Ads at the Speed of Thought"
+                  title="YLabz · SwiftAiAd — Building Ads at the Speed of Thought"
                   class="pointer-events-none h-full w-full scale-[1.01] border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   referrerpolicy="strict-origin-when-cross-origin"
@@ -160,7 +160,7 @@ interface YouTubeWindow extends Window {
                 </div>
 
                 <div class="flex items-center gap-3 text-xs">
-                  <span class="hidden sm:inline italic font-display text-white/90">“Speed of Thought.”</span>
+                  <span class="hidden sm:inline italic font-display text-white/90">“Speed of Thought.” · YLabz</span>
                   <span class="hidden sm:inline text-white/30">·</span>
                   <button
                     type="button"
@@ -171,10 +171,10 @@ interface YouTubeWindow extends Window {
                     {{ videoMuted() ? 'Sound Muted' : 'Sound Active' }}
                   </button>
                   <a
-                    href="https://youtu.be/2Tf6VAUScKw"
+                    href="https://youtu.be/F9nA7p1YlwM"
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="Watch video on YouTube"
+                    aria-label="Watch YLabz video on YouTube"
                     class="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
                   >
                     <mat-icon class="!text-base !w-4 !h-4 leading-none">open_in_new</mat-icon>
@@ -644,7 +644,7 @@ export class HomePage implements OnDestroy {
 
   protected readonly heroVideoEmbedUrl: SafeResourceUrl =
     this.sanitizer.bypassSecurityTrustResourceUrl(
-      'https://www.youtube.com/embed/2Tf6VAUScKw?autoplay=1&mute=1&loop=1&playlist=2Tf6VAUScKw&controls=0&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1&enablejsapi=1',
+      'https://www.youtube.com/embed/F9nA7p1YlwM?autoplay=1&mute=1&loop=1&playlist=F9nA7p1YlwM&controls=0&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1&enablejsapi=1',
     );
 
   protected readonly images = AGENCY_IMAGES;
