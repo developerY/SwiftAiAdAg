@@ -1,5 +1,18 @@
-import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
+import {isPlatformBrowser} from '@angular/common';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  OnDestroy,
+  PLATFORM_ID,
+  signal,
+  viewChild,
+} from '@angular/core';
 import {MatIconModule} from '@angular/material/icon';
+import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
 import {RouterLink} from '@angular/router';
 import {LeadBriefForm} from '../components/lead-brief-form';
 import {MediaFrame} from '../components/media-frame';
@@ -13,89 +26,194 @@ import {
 } from '../data/agency-content';
 import {LeadCapture} from '../services/lead-capture';
 
+interface YouTubePlayerInstance {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  mute: () => void;
+  unMute: () => void;
+  setVolume: (volume: number) => void;
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
+  destroy: () => void;
+}
+
+interface YouTubeNamespace {
+  Player: new (
+    element: HTMLIFrameElement,
+    options: {
+      events?: {
+        onReady?: (event: {target: YouTubePlayerInstance}) => void;
+        onStateChange?: (event: {data: number; target: YouTubePlayerInstance}) => void;
+      };
+    },
+  ) => YouTubePlayerInstance;
+}
+
+interface YouTubeWindow extends Window {
+  YT?: YouTubeNamespace;
+  onYouTubeIframeAPIReady?: () => void;
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-home-page',
   imports: [RouterLink, MatIconModule, MediaFrame, LeadBriefForm],
   template: `
-    <!-- Section 1: Luminous Kinetic Hero -->
-    <section class="luminous-hero-wash border-b border-slate-900/10 py-14 lg:py-20">
+    <!-- Section 1: Luminous Kinetic Hero + Featured Reel -->
+    <section class="luminous-hero-wash border-b border-slate-900/10 py-12 lg:py-16">
       <div class="mx-auto max-w-[1400px] px-6 lg:px-10">
-        <div class="mx-auto flex max-w-4xl flex-col items-center text-center">
-          <div class="mb-5 flex flex-col items-center gap-3">
-            <img
-              [src]="images.brandLogo"
-              alt="SwiftAiAd — AI Ad Agency Intelligent Advertising logo"
-              referrerpolicy="no-referrer"
-              class="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl object-cover shadow-md ring-1 ring-[#1E40AF]/20"
-            />
-            <p class="text-xs font-semibold tracking-wide text-[#1E40AF]">
-              Next-Gen Algorithmic Advertising · Swift AI Ad Agency (SwAI)
+        <div class="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
+          <!-- Left: Brand Identity, Headline & Actions -->
+          <div class="lg:col-span-6 flex flex-col items-start text-left">
+            <div class="mb-5 flex items-center gap-3.5">
+              <img
+                [src]="images.brandLogo"
+                alt="SwiftAiAd — AI Ad Agency Intelligent Advertising logo"
+                referrerpolicy="no-referrer"
+                class="h-12 w-12 sm:h-14 sm:w-14 rounded-xl object-cover shadow-md ring-1 ring-[#1E40AF]/20 shrink-0"
+              />
+              <p class="text-xs font-semibold tracking-wide text-[#1E40AF]">
+                Next-Gen Algorithmic Advertising · Swift AI Ad Agency (SwAI)
+              </p>
+            </div>
+
+            <h1
+              class="font-display font-bold tracking-tight text-[#131B2E] text-balance leading-[1.06]"
+              style="font-size: clamp(2.25rem, 3.9vw, 3.75rem);"
+            >
+              Building Ads at the
+              <span class="bg-gradient-to-r from-[#00288E] via-[#2563EB] to-[#06B6D4] bg-clip-text text-transparent">
+                Speed of Thought
+              </span>
+            </h1>
+
+            <p class="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-[#444653]">
+              Transforming ideas into production campaigns with real-time consumer feedback loops,
+              generative video pipelines, and autonomous mobility touchpoints—refining live creative every 20 minutes.
             </p>
+
+            <div class="mt-8 flex flex-wrap items-center gap-3.5">
+              <a
+                routerLink="/swift-ads"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1E40AF] px-6 py-3.5 text-sm font-semibold text-white hover:bg-[#2563EB] transition-colors whitespace-nowrap shrink-0 shadow-[0_4px_16px_rgba(37,99,235,0.28)]"
+              >
+                <mat-icon class="!text-lg !w-[18px] !h-[18px]">bolt</mat-icon>
+                <span>Explore Swift Ads</span>
+              </a>
+              <a
+                href="#lead-brief"
+                class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900/15 bg-white/90 px-6 py-3.5 text-sm font-semibold text-[#131B2E] hover:border-[#2563EB] hover:text-[#1E40AF] transition-colors whitespace-nowrap shrink-0 shadow-sm"
+              >
+                <mat-icon class="!text-lg !w-[18px] !h-[18px] text-[#06B6D4]">play_circle</mat-icon>
+                <span>Request Live Demo</span>
+              </a>
+            </div>
           </div>
 
-          <h1
-            class="font-display font-bold tracking-tight text-[#131B2E] text-balance leading-[1.06]"
-            style="font-size: clamp(2.5rem, 4.6vw, 4.25rem);"
-          >
-            Building Ads at the
-            <span class="bg-gradient-to-r from-[#00288E] via-[#2563EB] to-[#06B6D4] bg-clip-text text-transparent">
-              Speed of Thought
-            </span>
-          </h1>
+          <!-- Right: Clean Auto-Playing Video Showcase (Zero Overlays, Controls Dock Below) -->
+          <div class="lg:col-span-6">
+            <div class="rounded-2xl border border-slate-900/15 bg-[#131B2E] p-2 shadow-[0_24px_60px_rgba(19,27,46,0.2)]">
+              <!-- Pure Unobstructed 16:9 Video Canvas -->
+              <div class="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
+                <iframe
+                  #heroVideoFrame
+                  [src]="heroVideoEmbedUrl"
+                  title="SwiftAiAd — Building Ads at the Speed of Thought"
+                  class="pointer-events-none h-full w-full scale-[1.01] border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                ></iframe>
+              </div>
 
-          <p class="mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-[#444653]">
-            Transforming ideas into production campaigns with real-time consumer feedback loops,
-            generative video pipelines, and autonomous mobility touchpoints—refining live creative every 20 minutes.
-          </p>
+              <!-- Sleek Playback Controls Dock Directly Below the Video -->
+              <div class="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.07] px-3.5 py-2.5 text-white">
+                <div class="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    (click)="toggleVideoPlayback()"
+                    [attr.aria-label]="videoPlaying() ? 'Pause video' : 'Play video'"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#131B2E] shadow-sm transition-colors hover:bg-[#EAEDFF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06B6D4]"
+                  >
+                    <mat-icon class="!text-xl !w-5 !h-5 leading-none">
+                      {{ videoPlaying() ? 'pause' : 'play_arrow' }}
+                    </mat-icon>
+                  </button>
 
-          <div class="mt-9 flex flex-wrap items-center justify-center gap-4">
-            <a
-              routerLink="/swift-ads"
-              class="inline-flex items-center justify-center gap-2 rounded-lg bg-[#1E40AF] px-7 py-3.5 text-sm font-semibold text-white hover:bg-[#2563EB] transition-colors whitespace-nowrap shrink-0 shadow-[0_4px_16px_rgba(37,99,235,0.28)]"
-            >
-              <mat-icon class="!text-lg !w-[18px] !h-[18px]">bolt</mat-icon>
-              <span>Explore Swift Ads</span>
-            </a>
-            <a
-              href="#lead-brief"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900/15 bg-white/90 px-7 py-3.5 text-sm font-semibold text-[#131B2E] hover:border-[#2563EB] hover:text-[#1E40AF] transition-colors whitespace-nowrap shrink-0 shadow-sm"
-            >
-              <mat-icon class="!text-lg !w-[18px] !h-[18px] text-[#06B6D4]">play_circle</mat-icon>
-              <span>Request Live Demo</span>
-            </a>
+                  <button
+                    type="button"
+                    (click)="toggleVideoMute()"
+                    [attr.aria-label]="videoMuted() ? 'Unmute video sound' : 'Mute video sound'"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06B6D4]"
+                  >
+                    <mat-icon class="!text-lg !w-[18px] !h-[18px] leading-none">
+                      {{ videoMuted() ? 'volume_off' : 'volume_up' }}
+                    </mat-icon>
+                  </button>
+
+                  <button
+                    type="button"
+                    (click)="restartVideo()"
+                    aria-label="Restart video from beginning"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06B6D4]"
+                  >
+                    <mat-icon class="!text-lg !w-[18px] !h-[18px] leading-none">replay</mat-icon>
+                  </button>
+                </div>
+
+                <div class="flex items-center gap-3 text-xs">
+                  <span class="hidden sm:inline italic font-display text-white/90">“Speed of Thought.”</span>
+                  <span class="hidden sm:inline text-white/30">·</span>
+                  <button
+                    type="button"
+                    (click)="toggleVideoMute()"
+                    class="font-mono text-[11px] font-semibold tracking-wider uppercase transition-colors"
+                    [class]="videoMuted() ? 'text-slate-300 hover:text-white' : 'text-[#06B6D4] hover:text-white'"
+                  >
+                    {{ videoMuted() ? 'Sound Muted' : 'Sound Active' }}
+                  </button>
+                  <a
+                    href="https://youtu.be/2Tf6VAUScKw"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Watch video on YouTube"
+                    class="inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <mat-icon class="!text-base !w-4 !h-4 leading-none">open_in_new</mat-icon>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-Card Trust Highlight Strip -->
+        <div class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DDE1FF] text-[#00288E]">
+              <mat-icon>speed</mat-icon>
+            </div>
+            <div>
+              <p class="font-display text-base font-bold text-[#131B2E] leading-tight">3x Faster</p>
+              <p class="text-xs text-[#444653]">Turnaround Velocity</p>
+            </div>
           </div>
 
-          <!-- 3-Card Trust Highlight Strip -->
-          <div class="mt-12 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DDE1FF] text-[#00288E]">
-                <mat-icon>speed</mat-icon>
-              </div>
-              <div>
-                <p class="font-display text-base font-bold text-[#131B2E] leading-tight">3x Faster</p>
-                <p class="text-xs text-[#444653]">Turnaround Velocity</p>
-              </div>
+          <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAEDFF] text-[#1E40AF]">
+              <mat-icon>sync</mat-icon>
             </div>
-
-            <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAEDFF] text-[#1E40AF]">
-                <mat-icon>sync</mat-icon>
-              </div>
-              <div>
-                <p class="font-display text-base font-bold text-[#131B2E] leading-tight">Real-Time</p>
-                <p class="text-xs text-[#444653]">20-Min Adaptive Loop</p>
-              </div>
+            <div>
+              <p class="font-display text-base font-bold text-[#131B2E] leading-tight">Real-Time</p>
+              <p class="text-xs text-[#444653]">20-Min Adaptive Loop</p>
             </div>
+          </div>
 
-            <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFDAD7] text-[#B71422]">
-                <mat-icon>timer_off</mat-icon>
-              </div>
-              <div>
-                <p class="font-display text-base font-bold text-[#131B2E] leading-tight">Zero Delays</p>
-                <p class="text-xs text-[#444653]">Multi-Variant Synthesis</p>
-              </div>
+          <div class="flex items-center gap-3.5 rounded-2xl border border-slate-900/8 bg-white/85 backdrop-blur-md px-5 py-4 shadow-sm text-left">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFDAD7] text-[#B71422]">
+              <mat-icon>timer_off</mat-icon>
+            </div>
+            <div>
+              <p class="font-display text-base font-bold text-[#131B2E] leading-tight">Zero Delays</p>
+              <p class="text-xs text-[#444653]">Multi-Variant Synthesis</p>
             </div>
           </div>
         </div>
@@ -512,8 +630,22 @@ import {LeadCapture} from '../services/lead-capture';
     </section>
   `,
 })
-export class HomePage {
+export class HomePage implements OnDestroy {
   private readonly leadCapture = inject(LeadCapture);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly platformId = inject(PLATFORM_ID);
+
+  private readonly heroVideoFrame = viewChild<ElementRef<HTMLIFrameElement>>('heroVideoFrame');
+  private ytPlayer: YouTubePlayerInstance | null = null;
+  private isDestroyed = false;
+
+  protected readonly videoPlaying = signal(true);
+  protected readonly videoMuted = signal(true);
+
+  protected readonly heroVideoEmbedUrl: SafeResourceUrl =
+    this.sanitizer.bypassSecurityTrustResourceUrl(
+      'https://www.youtube.com/embed/2Tf6VAUScKw?autoplay=1&mute=1&loop=1&playlist=2Tf6VAUScKw&controls=0&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&modestbranding=1&enablejsapi=1',
+    );
 
   protected readonly images = AGENCY_IMAGES;
   protected readonly metrics = AGENCY_METRICS;
@@ -525,7 +657,129 @@ export class HomePage {
   protected readonly activeLoopIndex = signal(1);
   protected readonly activeLoop = computed(() => this.loopSteps[this.activeLoopIndex()] ?? this.loopSteps[0]);
 
+  constructor() {
+    afterNextRender(() => {
+      if (isPlatformBrowser(this.platformId)) {
+        this.initYouTubePlayer();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.isDestroyed = true;
+    this.ytPlayer?.destroy();
+    this.ytPlayer = null;
+  }
+
+  protected toggleVideoPlayback(): void {
+    if (this.videoPlaying()) {
+      this.videoPlaying.set(false);
+      if (this.ytPlayer) {
+        this.ytPlayer.pauseVideo();
+      } else {
+        this.sendYouTubeCommand('pauseVideo');
+      }
+    } else {
+      this.videoPlaying.set(true);
+      if (this.ytPlayer) {
+        this.ytPlayer.playVideo();
+      } else {
+        this.sendYouTubeCommand('playVideo');
+      }
+    }
+  }
+
+  protected toggleVideoMute(): void {
+    if (this.videoMuted()) {
+      this.videoMuted.set(false);
+      if (this.ytPlayer) {
+        this.ytPlayer.unMute();
+        this.ytPlayer.setVolume(100);
+        if (!this.videoPlaying()) {
+          this.ytPlayer.playVideo();
+          this.videoPlaying.set(true);
+        }
+      } else {
+        this.sendYouTubeCommand('unMute');
+        this.sendYouTubeCommand('setVolume', [100]);
+      }
+    } else {
+      this.videoMuted.set(true);
+      if (this.ytPlayer) {
+        this.ytPlayer.mute();
+      } else {
+        this.sendYouTubeCommand('mute');
+      }
+    }
+  }
+
+  protected restartVideo(): void {
+    this.videoPlaying.set(true);
+    if (this.ytPlayer) {
+      this.ytPlayer.seekTo(0, true);
+      this.ytPlayer.playVideo();
+    } else {
+      this.sendYouTubeCommand('seekTo', [0, true]);
+      this.sendYouTubeCommand('playVideo');
+    }
+  }
+
   protected presetBrief(focus: string, note: string): void {
     this.leadCapture.setPreset(focus, note);
+  }
+
+  private initYouTubePlayer(): void {
+    const iframe = this.heroVideoFrame()?.nativeElement;
+    if (!iframe) return;
+
+    const win = window as YouTubeWindow;
+    const attach = () => {
+      if (this.isDestroyed || !win.YT?.Player || this.ytPlayer) return;
+      this.ytPlayer = new win.YT.Player(iframe, {
+        events: {
+          onReady: (event) => {
+            event.target.mute();
+            event.target.playVideo();
+            this.videoPlaying.set(true);
+            this.videoMuted.set(true);
+          },
+          onStateChange: (event) => {
+            if (event.data === 0) {
+              // Ended: cycle immediately from the beginning
+              event.target.seekTo(0, true);
+              event.target.playVideo();
+              this.videoPlaying.set(true);
+            } else if (event.data === 1) {
+              this.videoPlaying.set(true);
+            } else if (event.data === 2) {
+              this.videoPlaying.set(false);
+            }
+          },
+        },
+      });
+    };
+
+    if (win.YT?.Player) {
+      attach();
+      return;
+    }
+
+    const previousReady = win.onYouTubeIframeAPIReady;
+    win.onYouTubeIframeAPIReady = () => {
+      previousReady?.();
+      attach();
+    };
+
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }
+
+  private sendYouTubeCommand(func: string, args: unknown[] = []): void {
+    const contentWindow = this.heroVideoFrame()?.nativeElement.contentWindow;
+    contentWindow?.postMessage(JSON.stringify({event: 'command', func, args}), '*');
   }
 }
